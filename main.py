@@ -1,5 +1,3 @@
-import numpy as np
-np.NaN = np.nan
 import json
 import time
 import logging
@@ -7,30 +5,14 @@ import ccxt
 import pandas as pd
 import pandas_ta as ta
 import os
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
-from datetime import datetime
+import numpy as np
 from http.server import HTTPServer, SimpleHTTPRequestHandler
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+import threading
 
-# Add this function to start a simple server
-def start_server():
-    port = int(os.environ.get("PORT", 5000))  # Use Render's PORT or default to 5000
-    server = HTTPServer(("", port), SimpleHTTPRequestHandler)
-    print(f"Server running on port {port}")
-    server.serve_forever()
+# Define NaN manually
+np.NaN = np.nan
 
-# Modify the main block to run both the server and the bot
-if __name__ == "__main__":
-    import threading
-    # Start the server in a separate thread
-    server_thread = threading.Thread(target=start_server)
-    server_thread.daemon = True  # This stops the server if the main program stops
-    server_thread.start()
-
-    # Run the backtest and bot
-    final_balance, trades = backtest(days=30)
-    print(f"Backtest result: Final balance = {final_balance} USDT, Total trades = {len(trades)}")
-    run_bot(dry_run=False)
-    
 # Load config
 CONFIG_PATH = "config.json"
 STATE_PATH = "trade_state.json"
@@ -139,6 +121,19 @@ def calculate_indicators(df):
         logging.error("calculate_indicators received None or empty DataFrame")
         return None
     try:
+        # Ensure required columns exist
+        required_columns = ["open", "high", "low", "close", "volume"]
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        if missing_columns:
+            logging.error(f"calculate_indicators: Missing columns {missing_columns}")
+            return None
+        
+        # Verify data types and non-null values
+        for col in required_columns:
+            if not pd.api.types.is_numeric_dtype(df[col]) or df[col].isnull().all():
+                logging.error(f"calculate_indicators: Invalid data in column {col}")
+                return None
+
         df["rsi"] = ta.rsi(df["close"], length=14)
         macd = ta.macd(df["close"], fast=12, slow=26, signal=9)
         df["macd"] = macd["MACD_12_26_9"]
@@ -150,9 +145,10 @@ def calculate_indicators(df):
         df["ema_200"] = ta.ema(df["close"], length=200)
         df["stoch_rsi"] = ta.stochrsi(df["close"], length=14)["STOCHRSIk_14_14_3_3"]
         df["atr"] = ta.atr(df["high"], df["low"], df["close"], length=config["atr_period"])
-        # Check for NaN values in key columns
-        required_columns = ["rsi", "macd", "macd_signal", "bb_upper", "bb_lower", "stoch_rsi", "atr"]
-        if df[required_columns].iloc[-1].isna().any():
+        
+        # Check for NaN values in key columns after calculation
+        required_indicators = ["rsi", "macd", "macd_signal", "bb_upper", "bb_lower", "stoch_rsi", "atr"]
+        if df[required_indicators].iloc[-1].isna().any():
             logging.warning("calculate_indicators: NaN values detected in key columns")
             return None
         return df
@@ -211,7 +207,7 @@ def place_order(side, quantity, price=None, dry_run=False):
         entry_price = current_price
         logging.info(f"Dry run: Simulated {side} order at {entry_price}, quantity={quantity}, leverage={state['current_leverage']}x")
         return {"price": entry_price, "fee": 0}, None, None
-
+    
     try:
         order_type = "market" if price is None else "limit"
         order = exchange.create_order(symbol, order_type, side, quantity, price)
@@ -273,7 +269,7 @@ def backtest(days=30):
     if df_trend is None:
         logging.error("backtest: Failed to calculate trend indicators")
         return config["starting_balance"], []
-
+    
     balance = config["starting_balance"]
     position = 0
     trades = []
@@ -315,7 +311,7 @@ def backtest(days=30):
                 cumulative_fees += fee
                 trades.append({"time": row["timestamp"], "side": "buy", "price": entry_price, "quantity": quantity, "fee": fee, "leverage": current_leverage})
                 logging.info(f"Backtest: Buy at {entry_price}, position={position}, fee={fee}, leverage={current_leverage}x")
-
+            
             sell_conditions = {
                 "rsi": row["rsi"] > config["rsi_sell"],
                 "stoch_rsi": row["stoch_rsi"] > config["stoch_rsi_sell"],
@@ -559,7 +555,20 @@ def run_bot(dry_run=False):
             logging.error(f"Bot error: {e}, Traceback: {str(e)}")
             time.sleep(10)
 
+# Start a simple server to keep Render happy
+def start_server():
+    port = int(os.environ.get("PORT", 5000))  # Use Render's PORT or default to 5000
+    server = HTTPServer(("", port), SimpleHTTPRequestHandler)
+    print(f"Server running on port {port}")
+    server.serve_forever()
+
 if __name__ == "__main__":
+    # Start the server in a separate thread
+    server_thread = threading.Thread(target=start_server)
+    server_thread.daemon = True  # This stops the server if the main program stops
+    server_thread.start()
+
+    # Run the backtest and bot
     final_balance, trades = backtest(days=30)
     print(f"Backtest result: Final balance = {final_balance} USDT, Total trades = {len(trades)}")
     run_bot(dry_run=False)
