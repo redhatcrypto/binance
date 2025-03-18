@@ -9,8 +9,6 @@ import pandas_ta as ta
 import os
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from datetime import datetime
-from flask import Flask
-import threading
 
 # Load config
 CONFIG_PATH = "config.json"
@@ -544,21 +542,3 @@ if __name__ == "__main__":
     final_balance, trades = backtest(days=30)
     print(f"Backtest result: Final balance = {final_balance} USDT, Total trades = {len(trades)}")
     run_bot(dry_run=False)
-
-
-
-app = Flask(__name__)
-
-@app.route('/')
-def home():
-    return "Bot is running!", 200
-
-def run_flask():
-    port = int(os.environ.get("PORT", 8080))  # Default to 8080 if PORT is not set
-    app.run(host='0.0.0.0', port=port)
-
-# Start Flask server in a separate thread
-flask_thread = threading.Thread(target=run_flask)
-flask_thread.daemon = True
-flask_thread.start()
-flask_thread.start()
