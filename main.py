@@ -542,3 +542,21 @@ if __name__ == "__main__":
     final_balance, trades = backtest(days=30)
     print(f"Backtest result: Final balance = {final_balance} USDT, Total trades = {len(trades)}")
     run_bot(dry_run=False)
+
+
+from flask import Flask
+import threading
+
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Bot is running!", 200
+
+def run_flask():
+    app.run(host='0.0.0.0', port=8080)
+
+# Start Flask server in a separate thread
+flask_thread = threading.Thread(target=run_flask)
+flask_thread.daemon = True
+flask_thread.start()
