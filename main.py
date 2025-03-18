@@ -9,7 +9,28 @@ import pandas_ta as ta
 import os
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from datetime import datetime
+from http.server import HTTPServer, SimpleHTTPRequestHandler
 
+# Add this function to start a simple server
+def start_server():
+    port = int(os.environ.get("PORT", 5000))  # Use Render's PORT or default to 5000
+    server = HTTPServer(("", port), SimpleHTTPRequestHandler)
+    print(f"Server running on port {port}")
+    server.serve_forever()
+
+# Modify the main block to run both the server and the bot
+if __name__ == "__main__":
+    import threading
+    # Start the server in a separate thread
+    server_thread = threading.Thread(target=start_server)
+    server_thread.daemon = True  # This stops the server if the main program stops
+    server_thread.start()
+
+    # Run the backtest and bot
+    final_balance, trades = backtest(days=30)
+    print(f"Backtest result: Final balance = {final_balance} USDT, Total trades = {len(trades)}")
+    run_bot(dry_run=False)
+    
 # Load config
 CONFIG_PATH = "config.json"
 STATE_PATH = "trade_state.json"
