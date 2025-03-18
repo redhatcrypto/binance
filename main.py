@@ -1,3 +1,5 @@
+import numpy as np
+np.NaN = np.nan
 import json
 import time
 import logging
@@ -5,13 +7,10 @@ import ccxt
 import pandas as pd
 import pandas_ta as ta
 import os
-import numpy as np
-from http.server import HTTPServer, SimpleHTTPRequestHandler
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from datetime import datetime
 import threading
 
-# Define NaN manually
-np.NaN = np.nan
 
 # Load config
 CONFIG_PATH = "config.json"
