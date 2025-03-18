@@ -11,7 +11,6 @@ from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_excep
 from datetime import datetime
 import threading
 
-
 # Load config
 CONFIG_PATH = "config.json"
 STATE_PATH = "trade_state.json"
